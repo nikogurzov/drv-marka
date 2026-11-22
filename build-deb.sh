@@ -9,7 +9,7 @@ chmod 755 "$R"
 trap 'rm -rf "$R"' EXIT
 mkdir -p "$R/DEBIAN" "$R/usr/lib/drv-marka" "$R/usr/bin" "$R/usr/share/applications" "$R/usr/share/doc/drv-marka"
 install -m 755 drv-marka.py popravi.py "$R/usr/lib/drv-marka/"
-install -m 644 jezgro.py izvori.py "$R/usr/lib/drv-marka/"
+install -m 644 jezgro.py izvori.py ezik.py "$R/usr/lib/drv-marka/"
 ln -s ../lib/drv-marka/drv-marka.py "$R/usr/bin/drv-marka"
 install -m 644 debian/com.palamarka.drvmarka.desktop "$R/usr/share/applications/"
 install -m 644 README.md "$R/usr/share/doc/drv-marka/"

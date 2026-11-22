@@ -73,3 +73,13 @@ python3 -m unittest discover -s tests
 ```
 
 Лиценз: MIT.
+
+## English
+drv-marka is a GTK 4 app for Debian that checks which drivers and firmware are missing after a fresh install, finds the right packages for your hardware (modalias, isenkram, nvidia-detect), installs them with one click and can **undo everything** it did. **The interface is in English when your system is in English** (Bulgarian on a Bulgarian system; `DRV_MARKA_EZIK=en` forces English). Help is under the ☰ menu (F1).
+
+- **Check** only reads; nothing is installed without “Fix” and your password.
+- Every fix is simulated with `apt-get -s` first; packages that would be removed are shown in red.
+- **↶ Undo everything** removes the packages it installed and restores the old apt sources and groups.
+- Install: download the `.deb` from [Releases](https://github.com/nikogurzov/drv-marka/releases) and run `sudo apt install ./drv-marka_*_all.deb`.
+
+Sister project: [boot-marka](https://github.com/nikogurzov/boot-marka) — boot splash, quiet boot and GRUB with pictures.

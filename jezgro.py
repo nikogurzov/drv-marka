@@ -8,8 +8,11 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 import izvori
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from ezik import _
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 
 ENV = dict(os.environ, LC_ALL="C", PATH=os.environ.get("PATH", "") + ":/usr/sbin:/sbin")
 
@@ -114,9 +117,9 @@ def judge(kind, driver, module):
         return OK, ""
     if VAZHNI.search(kind):
         if module:
-            return WARN, f"Има драйвер „{module}“, но не е зареден."
-        return WARN, "Няма драйвер. Устройството може да не работи."
-    return INFO, "Без драйвер. За този вид устройство това обикновено е нормално."
+            return WARN, _(f"Има драйвер „{module}“, но не е зареден.")
+        return WARN, _("Няма драйвер. Устройството може да не работи.")
+    return INFO, _("Без драйвер. За този вид устройство това обикновено е нормално.")
 
 
 def parse_lspci(text):
@@ -138,8 +141,8 @@ def parse_lspci(text):
     return out
 
 
-USB_CLASS = {"01": "Звук", "02": "Комуникация", "03": "Въвеждане", "06": "Снимки", "07": "Принтер", "08": "Памет",
-             "09": "USB разклонител", "0a": "Данни", "0b": "Карта", "0e": "Камера", "e0": "Безжично устройство"}
+USB_CLASS = {"01": _("Звук"), "02": _("Комуникация"), "03": _("Въвеждане"), "06": _("Снимки"), "07": _("Принтер"), "08": _("Памет"),
+             "09": _("USB разклонител"), "0a": _("Данни"), "0b": _("Карта"), "0e": _("Камера"), "e0": _("Безжично устройство")}
 
 
 def read_file(p):
@@ -167,14 +170,14 @@ def usb_devices(root="/sys/bus/usb/devices"):
         if cls == "09":      # вътрешните разклонители само пречат в списъка
             continue
         kinds = [USB_CLASS.get(c, "") for c in [cls] + classes if c and c != "00"]
-        kind = next((k for k in kinds if k), "USB устройство")
+        kind = next((k for k in kinds if k), _("USB устройство"))
         vid, pid = read_file(d + "/idVendor"), read_file(d + "/idProduct")
         name = (read_file(d + "/manufacturer") + " " + read_file(d + "/product")).strip() or f"{vid}:{pid}"
         names = ", ".join(dict.fromkeys(drivers))
         if names:
             out.append(Device("USB", kind, name, names, "", OK, ""))
         else:
-            out.append(Device("USB", kind, name, "", "", WARN, "Няма драйвер за това устройство.", next((a for a in aliases if a), "")))
+            out.append(Device("USB", kind, name, "", "", WARN, _("Няма драйвер за това устройство."), next((a for a in aliases if a), "")))
     return out
 
 
@@ -256,11 +259,11 @@ def firmware_findings(names, installed, exists=firmware_present):
             continue             # системата е търсила друга версия, но файлът вече е там
         pkg = firmware_package(name)
         if pkg and pkg in installed:
-            out.append(Finding(INFO, f"Търсен файл: {name}", f"Пакетът {pkg} е инсталиран, но няма точно този файл. Често е търсена по-нова версия и устройството работи с друга."))
+            out.append(Finding(INFO, _(f"Търсен файл: {name}"), _(f"Пакетът {pkg} е инсталиран, но няма точно този файл. Често е търсена по-нова версия и устройството работи с друга.")))
         elif pkg:
-            out.append(Finding(WARN, f"Липсва фърмуер: {name}", f"Вероятно се решава с пакета {pkg}. Той още не е инсталиран.", pkg))
+            out.append(Finding(WARN, _(f"Липсва фърмуер: {name}"), _(f"Вероятно се решава с пакета {pkg}. Той още не е инсталиран."), pkg))
         else:
-            out.append(Finding(INFO, f"Търсен файл: {name}", "Не знам от кой пакет идва. Може да не е нужен."))
+            out.append(Finding(INFO, _(f"Търсен файл: {name}"), _("Не знам от кой пакет идва. Може да не е нужен.")))
     return out
 
 
@@ -281,19 +284,19 @@ def gpu_findings(devices, smi_version, loaded, detect=None):
         if d.bus != "PCI" or not re.search(r"vga|3d|display", d.kind, re.I) or "nvidia" not in d.name.lower():
             continue
         if d.driver == "nvidia":
-            v = f", версия {smi_version}" if smi_version else ""
-            out.append(Finding(OK, "Видеокарта NVIDIA", f"Работи с драйвера на NVIDIA{v}."))
+            v = _(f", версия {smi_version}") if smi_version else ""
+            out.append(Finding(OK, _("Видеокарта NVIDIA"), _(f"Работи с драйвера на NVIDIA{v}.")))
         else:
             rec = parse_nvidia_detect(detect) if detect is not None else "?"
-            lvl, text = (INFO, "Работи със свободния драйвер nouveau.") if d.driver == "nouveau" else (WARN, "Няма зареден драйвер за картата.")
+            lvl, text = (INFO, _("Работи със свободния драйвер nouveau.")) if d.driver == "nouveau" else (WARN, _("Няма зареден драйвер за картата."))
             if rec == "":
-                text += " Картата е твърде стара за драйвера на NVIDIA в тази версия на Debian, затова остава nouveau."
+                text += _(" Картата е твърде стара за драйвера на NVIDIA в тази версия на Debian, затова остава nouveau.")
                 lvl = INFO
             elif rec == "?":
-                text += " Кой драйвер на NVIDIA е за нея ще каже nvidia-detect."
+                text += _(" Кой драйвер на NVIDIA е за нея ще каже nvidia-detect.")
             elif rec:
-                text += f" Подходящият драйвер на NVIDIA за нея е {rec}."
-            out.append(Finding(lvl, "Видеокарта NVIDIA", text, nvidia=rec or ""))
+                text += _(f" Подходящият драйвер на NVIDIA за нея е {rec}.")
+            out.append(Finding(lvl, _("Видеокарта NVIDIA"), text, nvidia=rec or ""))
         break
     return out
 
@@ -310,7 +313,7 @@ def microcode_findings(cpuinfo, installed):
     """Обновленията за процесора (microcode) идват от non-free-firmware и често липсват след инсталация."""
     vendor = "intel-microcode" if "GenuineIntel" in cpuinfo else "amd64-microcode" if "AuthenticAMD" in cpuinfo else ""
     if vendor and vendor not in installed:
-        return [Finding(WARN, "Липсват поправките за процесора", f"Пакетът {vendor} поправя грешки и пробиви в процесора.", vendor)]
+        return [Finding(WARN, _("Липсват поправките за процесора"), _(f"Пакетът {vendor} поправя грешки и пробиви в процесора."), vendor)]
     return []
 
 
@@ -327,9 +330,9 @@ def kernel_findings(devices, resolve):
             continue
         mods = resolve(d.alias)
         if mods:
-            out.append(Finding(WARN, f"Драйвер за {d.name}", f"Ядрото има драйвер „{mods[0]}“, но не е зареден. Ще го заредя.", "", mods[0]))
+            out.append(Finding(WARN, _(f"Драйвер за {d.name}"), _(f"Ядрото има драйвер „{mods[0]}“, но не е зареден. Ще го заредя."), "", mods[0]))
         elif d.alias:
-            out.append(Finding(INFO, f"Без драйвер в ядрото: {d.name}", "Ядрото няма драйвер за това устройство. Виж и препоръките на isenkram."))
+            out.append(Finding(INFO, _(f"Без драйвер в ядрото: {d.name}"), _("Ядрото няма драйвер за това устройство. Виж и препоръките на isenkram.")))
     return out
 
 
@@ -337,7 +340,7 @@ def isenkram_findings(names, installed):
     out = []
     for name in names:
         if name not in installed:
-            out.append(Finding(INFO, f"Намерен пакет: {name}", "isenkram го препоръчва за устройство в този компютър.", name))
+            out.append(Finding(INFO, _(f"Намерен пакет: {name}"), _("isenkram го препоръчва за устройство в този компютър."), name))
     return out
 
 
@@ -359,7 +362,7 @@ def plan(r, flavour="amd64", removes=lambda pkgs: []):
         if gone:
             f.default = False
             f.removes = gone
-            f.detail += f". ВНИМАНИЕ: ще махне {', '.join(gone)}"
+            f.detail += _(f". ВНИМАНИЕ: ще махне {', '.join(gone)}")
     return fixes
 
 
@@ -368,27 +371,27 @@ def _plan(r, flavour):
     for f in r.findings:
         if f.package and f.level in (WARN, INFO) and not f.nvidia:
             comps = ["non-free-firmware"] if NONFREE.match(f.package) else []
-            fixes.append(Fix(f.title, f"Инсталира {f.package}", [f.package], comps, default=f.level == WARN))
+            fixes.append(Fix(f.title, _(f"Инсталира {f.package}"), [f.package], comps, default=f.level == WARN))
             continue
         if f.level != WARN:
             continue
         elif f.module:
-            fixes.append(Fix(f.title, f"Зарежда драйвера {f.module}", modules=[f.module]))
-        elif f.title.startswith("Изворът non-free-firmware"):
-            fixes.append(Fix(f.title, "Включва non-free-firmware в изворите на Debian", components=["non-free-firmware"]))
+            fixes.append(Fix(f.title, _(f"Зарежда драйвера {f.module}"), modules=[f.module]))
+        elif f.title.startswith(_("Изворът non-free-firmware")):
+            fixes.append(Fix(f.title, _("Включва non-free-firmware в изворите на Debian"), components=["non-free-firmware"]))
     if NO_LOG in r.limits:
-        fixes.append(Fix("Достъп до дневника на ядрото", "Добавя те в групата adm, за да виждам липсващия фърмуер. Важи след излизане и влизане.", adm=True))
+        fixes.append(Fix(_("Достъп до дневника на ядрото"), _("Добавя те в групата adm, за да виждам липсващия фърмуер. Важи след излизане и влизане."), adm=True))
     if any("lspci" in x for x in r.limits):
-        fixes.append(Fix("Инструментът lspci", "Инсталира pciutils, за да се виждат вътрешните устройства", ["pciutils"]))
+        fixes.append(Fix(_("Инструментът lspci"), _("Инсталира pciutils, за да се виждат вътрешните устройства"), ["pciutils"]))
     for f in r.findings:
-        if f.title != "Видеокарта NVIDIA" or f.level == OK or not f.nvidia:
+        if f.title != _("Видеокарта NVIDIA") or f.level == OK or not f.nvidia:
             continue
         if f.nvidia == "?":
-            fixes.append(Fix("Кой драйвер е за видеокартата", "Инсталира nvidia-detect: инструментът на Debian, който казва дали картата се поддържа. После натисни „Намери драйвери“.",
+            fixes.append(Fix(_("Кой драйвер е за видеокартата"), _("Инсталира nvidia-detect: инструментът на Debian, който казва дали картата се поддържа. После натисни „Намери драйвери“."),
                              ["nvidia-detect"], ["contrib", "non-free"], default=f.level == WARN))
         else:
             extra = ["nvidia-kernel-dkms", "firmware-misc-nonfree"] if f.nvidia == "nvidia-driver" else []
-            fixes.append(Fix(f"Драйверът на NVIDIA ({f.nvidia})", "Препоръчан от nvidia-detect за тази карта. При Secure Boot ще поиска потвърждение на ключ след рестарт.",
+            fixes.append(Fix(_(f"Драйверът на NVIDIA ({f.nvidia})"), _("Препоръчан от nvidia-detect за тази карта. При Secure Boot ще поиска потвърждение на ключ след рестарт."),
                              [f"linux-headers-{flavour}", f.nvidia] + extra, ["contrib", "non-free", "non-free-firmware"], default=False))
     return fixes
 
@@ -440,8 +443,8 @@ def kernel_options(running, installed, policy, resolve, flavour="amd64"):
     """По едно предложение: най-новото от backports и най-новото стабилно, ако са по-нови от инсталираното."""
     top = max((vkey(v) for v in installed), default=())
     out = []
-    for bpo, label, note in ((True, "от backports", "По-ново ядро за нов хардуер, по-малко тествано от стабилното."),
-                             (False, "стабилно", "Официалното стабилно ядро на Debian с последните поправки.")):
+    for bpo, label, note in ((True, _("от backports"), _("По-ново ядро за нов хардуер, по-малко тествано от стабилното.")),
+                             (False, _("стабилно"), _("Официалното стабилно ядро на Debian с последните поправки."))):
         cands = sorted((v for v, b in policy if b == bpo), key=vkey, reverse=True)
         if not cands:
             continue
@@ -449,8 +452,8 @@ def kernel_options(running, installed, policy, resolve, flavour="amd64"):
         if not img or img[len("linux-image-"):] in installed or vkey(cands[0]) <= top and bpo:
             continue
         ver = img[len("linux-image-"):]
-        out.append(Fix(f"Ядро Linux {ver.split('+')[0]} ({label})",
-                       f"{note} Старото ядро остава в менюто при стартиране. Преди рестарт проверявам NVIDIA и другите DKMS драйвери.",
+        out.append(Fix(_(f"Ядро Linux {ver.split('+')[0]} ({label})"),
+                       _(f"{note} Старото ядро остава в менюто при стартиране. Преди рестарт проверявам NVIDIA и другите DKMS драйвери."),
                        [img] + ([hdr] if hdr else []), default=False, backports=bpo))
     return out
 
@@ -476,8 +479,8 @@ def kernels():
     return k
 
 
-NO_LOG = "Нямам достъп до дневника на ядрото, затова не виждам липсващ фърмуер. Поправката „Достъп до дневника“ го оправя."
-RELOGIN = "Вече си в групата adm, но това важи след излизане и влизане отново в системата. Дотогава не виждам липсващия фърмуер."
+NO_LOG = _("Нямам достъп до дневника на ядрото, затова не виждам липсващ фърмуер. Поправката „Достъп до дневника“ го оправя.")
+RELOGIN = _("Вече си в групата adm, но това важи след излизане и влизане отново в системата. Дотогава не виждам липсващия фърмуер.")
 ISTORIA = "/var/lib/drv-marka/istoria.json"
 ISTORIA_OLD = "/var/lib/draiveri/istoria.json"   # преди преименуването; пренася се при първата поправка
 
@@ -522,27 +525,27 @@ def collect(progress=lambda s: None, deep=False):
     r.system = m.group(1) if m else "Linux"
     r.kernel = (run(["uname", "-r"]) or "").strip()
 
-    progress("Чета устройствата…")
+    progress(_("Чета устройствата…"))
     pci = run(["lspci", "-vmm", "-k", "-nn"])
     if pci is None:
-        r.limits.append("Няма lspci, затова вътрешните устройства не се виждат. Идва с пакета pciutils.")
+        r.limits.append(_("Няма lspci, затова вътрешните устройства не се виждат. Идва с пакета pciutils."))
     else:
         r.devices += parse_lspci(pci)
     r.devices += usb_devices()
 
-    progress("Чета драйверите…")
+    progress(_("Чета драйверите…"))
     r.modules = parse_modules(read_file("/proc/modules"))
     describe_modules(r.modules)
 
-    progress("Чета пакетите…")
+    progress(_("Чета пакетите…"))
     pk = run(["dpkg-query", "-W", "-f=${Package}\t${Version}\t${binary:Summary}\t${db:Status-Abbrev}\n"])
     if pk is None:
-        r.limits.append("Няма dpkg, затова инсталираните пакети не се виждат.")
+        r.limits.append(_("Няма dpkg, затова инсталираните пакети не се виждат."))
     else:
         r.packages = parse_packages(pk)
     installed = all_installed(pk or "")
 
-    progress("Търся липсващ фърмуер…")
+    progress(_("Търся липсващ фърмуер…"))
     found = []
     log = run(["journalctl", "-k", "-b", "--no-pager", "-q"], 30)
     if not (log or "").strip():
@@ -561,17 +564,17 @@ def collect(progress=lambda s: None, deep=False):
 
     r.components = izvori.enabled()
     if r.components and "non-free-firmware" not in r.components:
-        found.append(Finding(WARN, "Изворът non-free-firmware не е включен",
-                             "Без него Debian не може да инсталира фърмуер за Wi-Fi, видео и звук."))
+        found.append(Finding(WARN, _("Изворът non-free-firmware не е включен"),
+                             _("Без него Debian не може да инсталира фърмуер за Wi-Fi, видео и звук.")))
 
     if deep:
-        progress("Търся драйвери за устройствата…")
+        progress(_("Търся драйвери за устройствата…"))
         r.deep = True
         found += kernel_findings(r.devices, resolve_alias)
         isen = run(["isenkram-lookup"], 90)
         if isen is None:
-            found.append(Finding(WARN, "Липсва търсачката isenkram",
-                                 "С нея Debian казва кой пакет е за кое устройство. Инсталирай я и търси отново.", "isenkram-cli"))
+            found.append(Finding(WARN, _("Липсва търсачката isenkram"),
+                                 _("С нея Debian казва кой пакет е за кое устройство. Инсталирай я и търси отново."), "isenkram-cli"))
         else:
             found += isenkram_findings(isen.split(), installed)
 
@@ -584,36 +587,36 @@ def collect(progress=lambda s: None, deep=False):
 def verdict(r):
     w = [f for f in r.findings if f.level == WARN]
     if w:
-        return WARN, f"Намерени неща за проверка: {len(w)}"
+        return WARN, _(f"Намерени неща за проверка: {len(w)}")
     if r.limits and not r.devices:
-        return INFO, "Проверката не успя да прочете устройствата."
+        return INFO, _("Проверката не успя да прочете устройствата.")
     if r.limits:
-        return INFO, "Не намерих липсващи драйвери, но част не беше проверена."
-    return OK, "Не намерих липсващи драйвери."
+        return INFO, _("Не намерих липсващи драйвери, но част не беше проверена.")
+    return OK, _("Не намерих липсващи драйвери.")
 
 
 def as_text(r):
-    L = ["ДРАЙВЕРИ", f"{r.system}, ядро {r.kernel}", "", verdict(r)[1], ""]
+    L = [_("ДРАЙВЕРИ"), _(f"{r.system}, ядро {r.kernel}"), "", verdict(r)[1], ""]
     mark = {OK: "✓", INFO: "•", WARN: "!"}
     if r.findings:
-        L.append("ПРОВЕРКА")
+        L.append(_("ПРОВЕРКА"))
         for f in r.findings:
             L.append(f"{mark[f.level]} {f.title}: {f.detail}")
         L.append("")
     if r.fixes:
-        L.append("МОЖЕ ДА СЕ ПОПРАВИ (drv-marka.py --fix)")
+        L.append(_("МОЖЕ ДА СЕ ПОПРАВИ (drv-marka.py --fix)"))
         L += [f"{'+' if f.default else '?'} {f.title}: {f.detail}" for f in r.fixes] + [""]
     if r.history:
         n = len({p for e in r.history for p in e.get("packages", [])})
-        L += [f"НАПРАВЕНО ОТ ПРОГРАМАТА: {len(r.history)} пъти, {n} пакета (връщане: drv-marka.py --reset)", ""]
+        L += [_(f"НАПРАВЕНО ОТ ПРОГРАМАТА: {len(r.history)} пъти, {n} пакета (връщане: drv-marka.py --reset)"), ""]
     if r.limits:
-        L.append("НЕ БЕШЕ ПРОВЕРЕНО")
+        L.append(_("НЕ БЕШЕ ПРОВЕРЕНО"))
         L += [f"• {x}" for x in r.limits] + [""]
-    L.append(f"УСТРОЙСТВА ({len(r.devices)})")
+    L.append(_(f"УСТРОЙСТВА ({len(r.devices)})"))
     for d in r.devices:
-        L.append(f"{mark[d.state]} [{d.bus}] {d.name} ({d.kind}): {d.driver or 'без драйвер'}")
-    L += ["", f"ЗАРЕДЕНИ ДРАЙВЕРИ ({len(r.modules)})"]
+        L.append(_(f"{mark[d.state]} [{d.bus}] {d.name} ({d.kind}): {d.driver or 'без драйвер'}"))
+    L += ["", _(f"ЗАРЕДЕНИ ДРАЙВЕРИ ({len(r.modules)})")]
     L += [f"  {m.name}: {m.description}" if m.description else f"  {m.name}" for m in r.modules]
-    L += ["", f"ФЪРМУЕР И ПАКЕТИ ЗА ДРАЙВЕРИ ({len(r.packages)})"]
+    L += ["", _(f"ФЪРМУЕР И ПАКЕТИ ЗА ДРАЙВЕРИ ({len(r.packages)})")]
     L += [f"  {p.name} {p.version}" for p in r.packages]
     return "\n".join(L) + "\n"

@@ -16,6 +16,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import izvori
+from ezik import _
 
 PKG = re.compile(r"^[a-z0-9][a-z0-9+.-]{1,80}$")
 MOD = re.compile(r"^[A-Za-z0-9_-]{1,60}$")
@@ -45,11 +46,11 @@ def args(argv):
             flags.add(argv[i])
             i += 1
         else:
-            raise SystemExit(f"Непознат аргумент: {argv[i]}")
+            raise SystemExit(_(f"Непознат аргумент: {argv[i]}"))
     comps, pkgs, mods = got["--comp"], got["--pkg"], got["--mod"]
     bad = [c for c in comps if c not in izvori.ALLOWED] + [p for p in pkgs if not PKG.match(p)] + [m for m in mods if not MOD.match(m)]
     if bad:
-        raise SystemExit("Отказвам, неправилни имена: " + ", ".join(bad))
+        raise SystemExit(_("Отказвам, неправилни имена: ") + ", ".join(bad))
     return comps, pkgs, mods, flags
 
 
@@ -115,7 +116,7 @@ def ensure_backports(entry):
         h.write(f"Types: deb\nURIs: http://deb.debian.org/debian/\nSuites: {cn}-backports\nComponents: main non-free-firmware\n"
                 "Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg\n")
     entry["added_files"] = [BPO_FILE]
-    say(f"== Добавих {cn}-backports в изворите ({BPO_FILE})")
+    say(_(f"== Добавих {cn}-backports в изворите ({BPO_FILE})"))
     return cn
 
 
@@ -131,16 +132,16 @@ def dkms_check(images):
         miss = need - mods(k)
         if miss:
             ok = False
-            say(f"!! НЕ РЕСТАРТИРАЙ: за ядро {k} липсват драйверите: {', '.join(sorted(miss))}. Натисни „Върни“.")
+            say(_(f"!! НЕ РЕСТАРТИРАЙ: за ядро {k} липсват драйверите: {', '.join(sorted(miss))}. Натисни „Върни“."))
         else:
-            say(f"== Ядро {k}: всички драйвери са готови" + (f" ({', '.join(sorted(need))})" if need else "") + ".")
+            say(_(f"== Ядро {k}: всички драйвери са готови") + (f" ({', '.join(sorted(need))})" if need else "") + ".")
     return ok
 
 
 def fix(comps, pkgs, mods, adm, backports=False):
     entry = {"time": time.strftime("%Y-%m-%d %H:%M:%S"), "backup": "", "packages": [], "removed": [], "adm": ""}
     if comps:
-        say("== Включвам в изворите: " + " ".join(comps))
+        say(_("== Включвам в изворите: ") + " ".join(comps))
         backup = f"{BACKUPS}/{time.strftime('%Y%m%d-%H%M%S')}"
         for f in izvori.files():
             with open(f) as h:
@@ -154,19 +155,19 @@ def fix(comps, pkgs, mods, adm, backports=False):
                 with open(f, "w") as h:
                     h.write(new)
                 entry["backup"] = backup
-                say(f"   {f} (старото е запазено в {backup})")
+                say(_(f"   {f} (старото е запазено в {backup})"))
     if adm:
         user = caller()
         if user and not in_group(user):
             subprocess.run(["usermod", "-aG", "adm", user], check=True)
             entry["adm"] = user
-            say(f"== {user} е добавен в групата adm. Важи след излизане и влизане отново.")
+            say(_(f"== {user} е добавен в групата adm. Важи след излизане и влизане отново."))
     try:
         if pkgs:
             before = installed()
             say("== apt-get update")
             if subprocess.run(["apt-get", "update"], env=ENV).returncode != 0:
-                raise SystemExit("apt-get update не успя. Провери интернета.")
+                raise SystemExit(_("apt-get update не успя. Провери интернета."))
             target = ["-t", f"{ensure_backports(entry)}-backports"] if backports else []
             if backports:
                 subprocess.run(["apt-get", "update"], env=ENV)
@@ -176,11 +177,11 @@ def fix(comps, pkgs, mods, adm, backports=False):
             entry["packages"] = sorted(after - before)        # с всички зависимости: точно каквото е добавено
             entry["removed"] = sorted(before - after)          # apt маха конфликтни пакети (tlp маха power-profiles-daemon)
             if r.returncode != 0:
-                raise SystemExit("Инсталирането не успя (виж по-горе).")
+                raise SystemExit(_("Инсталирането не успя (виж по-горе)."))
             if entry["packages"]:
-                say("   Нови пакети: " + " ".join(entry["packages"]))
+                say(_("   Нови пакети: ") + " ".join(entry["packages"]))
             if entry["removed"]:
-                say("   apt махна: " + " ".join(entry["removed"]) + " (при „Върни“ се слагат обратно)")
+                say(_("   apt махна: ") + " ".join(entry["removed"]) + _(" (при „Върни“ се слагат обратно)"))
         elif comps:
             subprocess.run(["apt-get", "update"], env=ENV)
     finally:
@@ -192,7 +193,7 @@ def fix(comps, pkgs, mods, adm, backports=False):
     for m in mods:
         say(f"== modprobe {m}")
         subprocess.run(["modprobe", m])
-    say("== ГОТОВО. Рестартирай компютъра, за да се заредят новите драйвери." if pkgs else "== ГОТОВО.")
+    say(_("== ГОТОВО. Рестартирай компютъра, за да се заредят новите драйвери.") if pkgs else _("== ГОТОВО."))
 
 
 def removed_from_apt_log(when, log="/var/log/apt/history.log"):
@@ -219,21 +220,21 @@ def removed_from_apt_log(when, log="/var/log/apt/history.log"):
 def reset():
     h = load_history()
     if not h:
-        say("Програмата не е променяла нищо. Няма какво да връщам.")
+        say(_("Програмата не е променяла нищо. Няма какво да връщам."))
         return
     now = installed()
     kver = os.uname().release          # работещото ядро не се маха
     pkgs = sorted({p for e in h for p in e.get("packages", []) if p in now and not p.endswith(kver)})
     if any(p.endswith(kver) for e in h for p in e.get("packages", [])):
-        say(f"!! Работиш с ядро {kver}, сложено от програмата. Него не махам: стартирай със старото и пусни „Върни“ пак.")
+        say(_(f"!! Работиш с ядро {kver}, сложено от програмата. Него не махам: стартирай със старото и пусни „Върни“ пак."))
     back = []
     for e in h:
         rem = e["removed"] if "removed" in e else removed_from_apt_log(e.get("time", "")) if e.get("packages") else []
         back += [p for p in rem if p not in back and p not in pkgs]
     if pkgs:
-        say("== Махам пакетите, сложени от програмата: " + " ".join(pkgs))
+        say(_("== Махам пакетите, сложени от програмата: ") + " ".join(pkgs))
         if subprocess.run(["apt-get", "purge", "-y", *pkgs], env=ENV).returncode != 0:
-            raise SystemExit("Махането не успя (виж по-горе). Нищо друго не е пипано.")
+            raise SystemExit(_("Махането не успя (виж по-горе). Нищо друго не е пипано."))
     for e in reversed(h):            # най-старото копие се връща последно: то е състоянието преди програмата
         b = e.get("backup")
         if b and os.path.exists(b + "/MAP"):
@@ -242,34 +243,39 @@ def reset():
             for line in lines:
                 name, dest = line.rstrip("\n").split("\t")
                 shutil.copy2(os.path.join(b, name), dest)
-                say(f"== Върнат е старият {dest}")
+                say(_(f"== Върнат е старият {dest}"))
         for f in e.get("added_files", []):
             if os.path.exists(f):
                 os.remove(f)
-                say(f"== Изтрит {f}")
+                say(_(f"== Изтрит {f}"))
         if e.get("adm"):
             subprocess.run(["gpasswd", "-d", e["adm"], "adm"])
-            say(f"== {e['adm']} е изваден от групата adm")
+            say(_(f"== {e['adm']} е изваден от групата adm"))
     subprocess.run(["apt-get", "update"], env=ENV)
     back = [p for p in back if p not in installed()]
     if back:
-        say("== Слагам обратно махнатото: " + " ".join(back))
+        say(_("== Слагам обратно махнатото: ") + " ".join(back))
         if subprocess.run(["apt-get", "install", "-y", *back], env=ENV).returncode != 0:
-            say("   Не успях да ги сложа обратно. Пусни: sudo apt install " + " ".join(back))
+            say(_("   Не успях да ги сложа обратно. Пусни: sudo apt install ") + " ".join(back))
     keep = sorted({p for e in h for p in e.get("packages", []) if p.endswith(kver) and p in now})
     shutil.copy2(ISTORIA, ISTORIA.replace(".json", f"-vrnato-{time.strftime('%Y%m%d-%H%M%S')}.json"))
     if keep:      # работещото ядро остава за следващото „Върни“, от старото ядро
         save_history([{"time": time.strftime("%Y-%m-%d %H:%M:%S"), "backup": "", "packages": keep, "removed": [], "adm": ""}])
-        say("== Остава само: " + " ".join(keep) + ". Стартирай със старото ядро и натисни „Върни“ пак.")
+        say(_("== Остава само: ") + " ".join(keep) + _(". Стартирай със старото ядро и натисни „Върни“ пак."))
         return
     os.remove(ISTORIA)
-    say("== ГОТОВО. Всичко е както преди програмата. Рестартирай компютъра.")
+    say(_("== ГОТОВО. Всичко е както преди програмата. Рестартирай компютъра."))
 
 
 def main():
+    if "--ezik" in sys.argv:
+        i = sys.argv.index("--ezik")
+        import ezik
+        ezik.set_ezik(sys.argv[i + 1] if i + 1 < len(sys.argv) else "bg")
+        del sys.argv[i:i + 2]
     comps, pkgs, mods, flags = args(sys.argv[1:])
     if os.geteuid() != 0:
-        raise SystemExit("Трябва да се пусне като root (през pkexec).")
+        raise SystemExit(_("Трябва да се пусне като root (през pkexec)."))
     if "--reset" in flags:
         reset()
     else:
